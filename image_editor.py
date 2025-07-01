@@ -1,22 +1,53 @@
-from PIL import ImageEnhance, Image, ImageOps
+# 📦 Required Libraries
+from PIL import Image, ImageEnhance
+import cv2
+import numpy as np
 
-def enhance_image(img):
-    """
-    Automatically enhances brightness, contrast, and sharpness.
-    """
-    # Brightness
-    bright = ImageEnhance.Brightness(img)
-    img = bright.enhance(1.2)
+# 💡 Brightness Enhancer (Pillow)
+def enhance_brightness(img, factor=1.5):
+    enhancer = ImageEnhance.Brightness(img)
+    return enhancer.enhance(factor)
 
-    # Contrast
-    contrast = ImageEnhance.Contrast(img)
-    img = contrast.enhance(1.3)
+# 💡 Contrast Enhancer (Pillow)
+def enhance_contrast(img, factor=1.3):
+    enhancer = ImageEnhance.Contrast(img)
+    return enhancer.enhance(factor)
 
-    # Sharpness
-    sharp = ImageEnhance.Sharpness(img)
-    img = sharp.enhance(1.1)
+# 💡 Sharpness Enhancer (Pillow)
+def enhance_sharpness(img, factor=2.0):
+    enhancer = ImageEnhance.Sharpness(img)
+    return enhancer.enhance(factor)
 
-    return img
+# 🧠 Extra: OpenCV – Sharpen Filter
+def sharpen_opencv(img_path):
+    img = cv2.imread(img_path)
+    kernel = np.array([[0, -1, 0],
+                       [-1, 5, -1],
+                       [0, -1, 0]])
+    sharp = cv2.filter2D(img, -1, kernel)
+    cv2.imwrite("opencv_sharp.jpg", sharp)
+
+# 🏁 Main Execution Block
+if __name__ == "__main__":
+    try:
+        # 📥 Ask user for image filename
+        filename = input("Enter the image file name (with extension, e.g., 'photo.jpg'): ")
+
+        # === PILLOW PART ===
+        img = Image.open(filename)
+
+        enhance_brightness(img.copy()).save("bright.jpg")
+        enhance_contrast(img.copy()).save("contrast.jpg")
+        enhance_sharpness(img.copy()).save("sharp.jpg")
+
+        # === OPENCV PART ===
+        sharpen_opencv(filename)
+
+        print("✅ Pillow + OpenCV enhancements done successfully!")
+
+    except FileNotFoundError:
+        print("❌ File not found. Please make sure the image is in this folder.")
+
 
 
 def apply_filter(img, filter_name):
