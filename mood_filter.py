@@ -11,51 +11,186 @@ openai.api_key = os.getenv("OPENAI_API_KEY", "sk-proj-...aapka-key...")
 if not openai.api_key or openai.api_key.startswith("sk-") == False:
     raise ValueError("OpenAI API key not set. Please set it in code or as an environment variable.")
 
-def get_filter_for_mood(mood_input):
-    """
-    Expanded mood-to-filter logic.
-    Handles aliases and basic free-text matching.
-    """
+# Mood to filter mapping
+MOOD_FILTERS = {
+    "happy": "warm",
+    "sad": "grayscale",
+    "excited": "rose",
+    "bored": "dim",
+    "peaceful": "sepia",
+    "energetic": "sharp",
+    "nostalgic": "sepia",
+    "hopeful": "bright",
+    "angry": "cool",
+    "relaxed": "sepia",
+    "confused": "grayscale",
+    "motivated": "sharp",
+    "romantic": "rose",
+    "lonely": "grayscale",
+    "grateful": "warm",
+    "anxious": "dim",
+    "scared": "grayscale",
+    "coward": "grayscale",
+    "strong": "sharp"
+}
 
-    mood_input = mood_input.lower().strip()
+# Mood to caption mapping
+MOOD_CAPTIONS = {
+    "happy": "Radiating joy and sunshine!",
+    "sad": "Even rainy days help us grow.",
+    "excited": "Can't wait for what's next!",
+    "bored": "Looking for a spark in the ordinary.",
+    "peaceful": "Calm mind, happy soul.",
+    "energetic": "Full of life and ready to go!",
+    "nostalgic": "Memories never fade.",
+    "hopeful": "Eyes on the stars, feet on the ground.",
+    "angry": "Turning fire into fuel.",
+    "relaxed": "Just going with the flow.",
+    "confused": "Lost in thought, finding my way.",
+    "motivated": "Chasing dreams, one step at a time.",
+    "romantic": "Love is in the air.",
+    "lonely": "Sometimes, solitude is beautiful.",
+    "grateful": "Thankful for every little thing.",
+    "anxious": "Taking deep breaths and moving forward.",
+    "scared": "Facing my fears, one step at a time.",
+    "coward": "Gathering courage to move ahead.",
+    "strong": "Unbreakable spirit, unstoppable mind!"
+}
 
-    # Step 1: Define mood categories (with synonyms/aliases)
-    mood_keywords = {
-        "happy": ["happy", "joyful", "cheerful", "excited", "delighted"],
-        "calm": ["calm", "relaxed", "serene", "chill", "cool"],
-        "sad": ["sad", "down", "depressed", "unhappy", "lonely"],
-        "romantic": ["romantic", "in love", "loving", "sweet"],
-        "angry": ["angry", "mad", "furious", "annoyed", "frustrated"],
-        "tired": ["tired", "exhausted", "sleepy", "drained"],
-        "nostalgic": ["nostalgic", "memory", "past", "old"],
-        "peaceful": ["peaceful", "zen", "still", "quiet"],
-    }
+# Mood to music mapping
+MOOD_MUSIC = {
+    "happy": (
+        "Happy - Pharrell Williams",
+        "https://www.youtube.com/watch?v=ZbZSe6N_BXs",
+        "https://open.spotify.com/track/60nZcImufyMA1MKQY3dcCH"
+    ),
+    "sad": (
+        "Someone Like You - Adele",
+        "https://www.youtube.com/watch?v=hLQl3WQQoQ0",
+        "https://open.spotify.com/track/4kflIGfjdZJW4ot2ioixTB"
+    ),
+    "excited": (
+        "Can't Stop the Feeling! - Justin Timberlake",
+        "https://www.youtube.com/watch?v=ru0K8uYEZWw",
+        "https://open.spotify.com/track/6JV2JOEocMgcZxYSZelKcc"
+    ),
+    "bored": (
+        "Bored - Billie Eilish",
+        "https://www.youtube.com/watch?v=pbMwTqkKSps",
+        "https://open.spotify.com/track/2dLLR6qlu5UJ5gk0dKz0h3"
+    ),
+    "peaceful": (
+        "Weightless - Marconi Union",
+        "https://www.youtube.com/watch?v=UfcAVejslrU",
+        "https://open.spotify.com/track/7yCPwWs66K8Ba5lFuU2bcx"
+    ),
+    "energetic": (
+        "Stronger - Kanye West",
+        "https://www.youtube.com/watch?v=PsO6ZnUZI0g",
+        "https://open.spotify.com/track/5CQ30WqJwcep0pYcV4AMNc"
+    ),
+    "nostalgic": (
+        "See You Again - Wiz Khalifa ft. Charlie Puth",
+        "https://www.youtube.com/watch?v=RgKAFK5djSk",
+        "https://open.spotify.com/track/2b8fOow8UzyDFAE27YhOZM"
+    ),
+    "hopeful": (
+        "Fight Song - Rachel Platten",
+        "https://www.youtube.com/watch?v=xo1VInw-SKc",
+        "https://open.spotify.com/track/2G7V7zsVDxg1yRsu7Ew9RJ"
+    ),
+    "angry": (
+        "In The End - Linkin Park",
+        "https://www.youtube.com/watch?v=eVTXPUF4Oz4",
+        "https://open.spotify.com/track/60a0Rd6pjrkxjPbaKzXjfq"
+    ),
+    "relaxed": (
+        "Better Together - Jack Johnson",
+        "https://www.youtube.com/watch?v=u57d4_b_YgI",
+        "https://open.spotify.com/track/3ebXMykcMXOcLeJ9xZ17XH"
+    ),
+    "confused": (
+        "Lost - Frank Ocean",
+        "https://www.youtube.com/watch?v=o_XQaIcIAfg",
+        "https://open.spotify.com/track/1R0a2iXumgCiFb7HEZ7gUE"
+    ),
+    "motivated": (
+        "Eye of the Tiger - Survivor",
+        "https://www.youtube.com/watch?v=btPJPFnesV4",
+        "https://open.spotify.com/track/2KH16WveTQWT6KOG9Rg6e2"
+    ),
+    "romantic": (
+        "Perfect - Ed Sheeran",
+        "https://www.youtube.com/watch?v=2Vv-BfVoq4g",
+        "https://open.spotify.com/track/0tgVpDi06FyKpA1z0VMD4v"
+    ),
+    "lonely": (
+        "Lonely - Akon",
+        "https://www.youtube.com/watch?v=6EEW-9NDM5k",
+        "https://open.spotify.com/track/5y6nVaayzitvsI8ZJ0hL3j"
+    ),
+    "grateful": (
+        "Grateful - Rita Ora",
+        "https://www.youtube.com/watch?v=5oO5s3nbivA",
+        "https://open.spotify.com/track/2QeKHdZQh1nvwK1d8WbD6V"
+    ),
+    "anxious": (
+        "Breathe Me - Sia",
+        "https://www.youtube.com/watch?v=wbP0cQkQvvE",
+        "https://open.spotify.com/track/5kqIPrATaCc2LqxVWzQGbk"
+    ),
+    "scared": (
+        "Scared to Be Lonely - Martin Garrix & Dua Lipa",
+        "https://www.youtube.com/watch?v=e2vBLd5Egnk",
+        "https://open.spotify.com/track/0nJW01T7XtvILxQgC5J7Wh"
+    ),
+    "coward": (
+        "Brave - Sara Bareilles",
+        "https://www.youtube.com/watch?v=QUQsqBqxoR4",
+        "https://open.spotify.com/track/0puf9yIluy9W0vpMEUoAnN"
+    ),
+    "strong": (
+        "Believer - Imagine Dragons",
+        "https://www.youtube.com/watch?v=7wtfhZwyrcc",
+        "https://open.spotify.com/track/0pqnGHJpmpxLKifKRmU6WP"
+    )
+}
 
-    mood_to_filter = {
-        "happy": "warm",
-        "calm": "cool",
-        "sad": "grayscale",
-        "romantic": "sepia",
-        "angry": "high_contrast",
-        "tired": "low_saturation",
-        "nostalgic": "sepia",
-        "peaceful": "pastel"
-    }
+# Helper to get the best match for a mood
+def get_best_match(mood, mapping, default):
+    mood = mood.lower()
+    for key in mapping:
+        if key in mood:
+            return mapping[key]
+    return default
 
-    # Step 2: Keyword matching
-    for mood_category, keywords in mood_keywords.items():
-        for keyword in keywords:
-            if keyword in mood_input:
-                return mood_to_filter[mood_category]
+def get_filter_for_mood(mood):
+    # Pehle dictionary mapping try karo
+    filter_name = get_best_match(mood, MOOD_FILTERS, None)
+    if filter_name:
+        return filter_name
+    # Agar nahi mila, toh GPT-based suggestion use karo
+    return gpt_based_mood_filter(mood)
 
-    # Step 3: Default fallback
-    return "default"
+def generate_caption_for_mood(mood):
+    return get_best_match(mood, MOOD_CAPTIONS, "Capturing the moment.")
+
+def recommend_music_for_mood(mood):
+    return get_best_match(
+        mood,
+        MOOD_MUSIC,
+        (
+            "Let It Be - The Beatles",
+            "https://www.youtube.com/watch?v=QDYfEBY9NM4",
+            "https://open.spotify.com/track/0aym2LBJBk9DAYuHHutrIl"
+        )
+    )
 
 # ---------------------------
 # Optional GPT-Based Logic
 # ---------------------------
 
-def gpt_based_mood_filter(mood_input):
+def gpt_based_mood_filter(mood):
     """
     Uses GPT to map free-form emotional text to a photo filter.
     Returns one of: warm, cool, sepia, grayscale, high_contrast, low_saturation, pastel, default
@@ -71,7 +206,7 @@ Available filters are:
 - low_saturation
 - pastel
 
-User's mood: "{mood_input}"
+User's mood: "{mood}"
 
 What is the best matching filter name from the list above? Just reply with the filter name only.
 """
@@ -114,12 +249,6 @@ def rule_based_caption_for_mood(mood_input):
     # Step 2: Default fallback
     return "A moment worth sharing. 📷✨"
 
-def generate_caption_for_mood(mood_input):
-    """
-    Returns a rule-based caption for a photo based on the user's mood.
-    """
-    return rule_based_caption_for_mood(mood_input)
-
 def rule_based_music_for_mood(mood_input):
     """
     Returns a tuple: (song or playlist recommendation, YouTube link, Spotify link) based on the detected mood using rules.
@@ -141,12 +270,6 @@ def rule_based_music_for_mood(mood_input):
             return song_tuple
     # Step 2: Default fallback
     return ("'Viva La Vida' by Coldplay", "https://www.youtube.com/watch?v=dvgZkm1xWPE", "https://open.spotify.com/track/1mea3bSkSGXuIRvnydlB5b")
-
-def recommend_music_for_mood(mood_input):
-    """
-    Returns a tuple: (song or playlist recommendation, YouTube link, Spotify link) for the user's mood.
-    """
-    return rule_based_music_for_mood(mood_input)
 
 #test the code
 if __name__ == "__main__":
