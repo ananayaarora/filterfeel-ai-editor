@@ -4,71 +4,98 @@ from image_editor import apply_filter
 from PIL import Image
 import os
 import io
+import re
 
-st.set_page_config(page_title="FilterFeel", page_icon="🎭")
-st.title("🎭 FilterFeel - AI Mood-Bases Photo Editor")
+# Page config
+st.set_page_config(page_title="FilterFeel", page_icon="🎭", layout="wide")
+st.title("🎭 FilterFeel - AI Mood-Based Photo Editor")
 st.write("Upload your photo and enter your mood to get a matching filter, creative caption, and music suggestion.")
 
+# API Key check
 openai_key = os.getenv("OPENAI_API_KEY", "")
-if not openai_key or openai_key.startswith("sk-") == False:
+if not openai_key or not openai_key.startswith("sk-"):
     st.error("OpenAI API key not set. Please set it in your environment variables.")
 else:
-    # Sidebar input panel
+    # Sidebar input
     with st.sidebar:
         st.title("💭 Mood and Photo Input")
-        with st.form("mood_form"):
-            user_mood = st.text_input("How are you feeling today?", "")
-            uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
-            submitted = st.form_submit_button("✨ Get Mood Filter")
 
-    # Session state to store results
+        # Mood input
+        preset_moods = ["😊 Happy", "😢 Sad", "😤 Angry", "😌 Calm", "🤩 Excited", "✍️ Enter your own"]
+        selected_mood = st.selectbox("Choose a mood or write your own:", preset_moods)
+        custom_mood = ""
+        if selected_mood == "✍️ Enter your own":
+            custom_mood = st.text_input("Enter your custom mood:")
+        user_mood = custom_mood if selected_mood == "✍️ Enter your own" else selected_mood
+
+        uploaded_file = st.file_uploader("Upload an image", type=["jpg", "jpeg", "png"])
+        filter_choice = st.radio("Choose a filter type:", ["Rule-Based", "GPT-Based"])
+        submitted = st.form(key="mood_form").form_submit_button("✨ Get Mood Filter")
+
+    # Store results in session state
     if "results" not in st.session_state:
         st.session_state["results"] = None
 
-    # Handle form submission
+    # Submission handling
     if submitted:
         if not user_mood.strip():
             st.warning("Please enter your mood!")
         elif not uploaded_file:
             st.warning("Please upload an image!")
+        elif len(user_mood.strip()) < 3 or re.fullmatch(r"[0-9\s\W_]+", user_mood):
+            st.warning("Please enter a meaningful mood (at least 3 letters, not just numbers/symbols).")
         else:
             with st.spinner("Analyzing your mood and processing your image..."):
-                rule_based = get_filter_for_mood(user_mood)
-                gpt_based = gpt_based_mood_filter(user_mood)
-                caption = generate_caption_for_mood(user_mood)
-                music_title, music_youtube, music_spotify = recommend_music_for_mood(user_mood)
-                image = Image.open(uploaded_file)
-                filtered_image = apply_filter(image, rule_based)
-            # Store results in session state
-            st.session_state["results"] = {
-                "rule_based": rule_based,
-                "gpt_based": gpt_based,
-                "caption": caption,
-                "music_title": music_title,
-                "music_youtube": music_youtube,
-                "music_spotify": music_spotify,
-                "image": image,
-                "filtered_image": filtered_image
-            }
+                try:
+                    # Apply selected filter only
+                    if filter_choice == "Rule-Based":
+                        applied_filter = get_filter_for_mood(user_mood)
+                    else:
+                        applied_filter = gpt_based_mood_filter(user_mood)
 
-    # Main area: show results
+                    # Other outputs
+                    caption = generate_caption_for_mood(user_mood)
+                    music_title, music_youtube, music_spotify = recommend_music_for_mood(user_mood)
+
+                    image = Image.open(uploaded_file)
+                    filtered_image = apply_filter(image, applied_filter)
+
+                    # Store results
+                    st.session_state["results"] = {
+                        "filter_choice": filter_choice,
+                        "applied_filter": applied_filter,
+                        "caption": caption,
+                        "music_title": music_title,
+                        "music_youtube": music_youtube,
+                        "music_spotify": music_spotify,
+                        "image": image,
+                        "filtered_image": filtered_image
+                    }
+
+                except Exception as e:
+                    st.error(f"Something went wrong during processing: {str(e)}")
+                    st.stop()
+
+    # Show results
     results = st.session_state.get("results")
     if results:
         st.success("Here are your mood-based enhancements!")
         st.balloons()
-        st.markdown(f"**Rule-Based Filter:** `{results['rule_based']}`")
-        st.markdown(f"**GPT-Based Filter:** `{results['gpt_based']}`")
+
+        st.markdown(f"**Applied Filter ({results['filter_choice']}):** `{results['applied_filter']}`")
         st.markdown(f"**Caption:** _{results['caption']}_")
-        st.markdown(f"**Music Recommendation:** _{results['music_title']}_  ")
-        st.markdown(f"[▶️ Listen on YouTube]({results['music_youtube']}) | [🎵 Listen on Spotify]({results['music_spotify']})")
+        st.markdown(f"**Music Recommendation:** _{results['music_title']}_")
+        st.markdown(f"[▶️ YouTube]({results['music_youtube']}) | [🎵 Spotify]({results['music_spotify']})")
+
+        st.markdown("---")
         col1, col2 = st.columns(2)
         with col1:
             st.subheader("📤 Original Image")
             st.image(results["image"], use_column_width=True)
         with col2:
-            st.subheader(f"🎨 Filtered Image ({results['rule_based']})")
+            st.subheader(f"🎨 Filtered Image ({results['filter_choice']})")
             st.image(results["filtered_image"], use_column_width=True)
-            # Add download button for filtered image
+            st.markdown("### ⬇️ Download")
             buf = io.BytesIO()
             results["filtered_image"].save(buf, format="PNG")
             byte_im = buf.getvalue()
@@ -78,5 +105,18 @@ else:
                 file_name="filtered_image.png",
                 mime="image/png"
             )
+
+        st.markdown("---")
+        col3, col4 = st.columns(2)
+        with col3:
+            if st.button("🔁 Try Again"):
+                st.session_state["results"] = None
+                st.stop()
+        with col4:
+            if st.button("🗑️ Clear Results"):
+                st.session_state["results"] = None
+                st.success("Results cleared! You can start fresh now.")
+                st.stop()
+
     else:
         st.info("Fill the input panel and submit to see results here.")

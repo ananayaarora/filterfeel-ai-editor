@@ -31,7 +31,7 @@ def apply_filter(img, filter_name):
     filter_name = filter_name.lower()
 
     if filter_name == "grayscale":
-        return img.convert("L")
+        return img.convert("L").convert("RGB")
 
     elif filter_name == "sepia":
         sepia_img = ImageOps.colorize(img.convert("L"), '#704214', '#C0A080')
